@@ -1,0 +1,188 @@
+---
+title: "Clúster de preferencias de gustos de prueba de producto de jamón endiablado"
+author: "Jorge Oduber"
+date: "2023-12-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#Leer datos
+library(haven)
+library(dplyr)
+Prueba_Productos <- read_sav("C:/Users/USUARIO/OneDrive/Escritorio/Portfolio/Cluster/Prueba_Productos.sav")
+View(Prueba_Productos)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Convertir en data frame
+library(cluster)
+Datos <- as.data.frame(Prueba_Productos)
+
+# Convertir las variables categóricas en factores
+Datos$Que_resalta <- factor(Datos$Que_resalta)
+Datos$Precio <- factor(Datos$Precio)
+Datos$Olor <- factor(Datos$Olor)
+Datos$Color <- factor(Datos$Color)
+Datos$Sabor <- factor(Datos$Sabor)
+Datos$Presentacion <- factor(Datos$Presentacion)
+Datos$Consistencia <- factor(Datos$Consistencia)
+Datos$Marca <- factor(Datos$Marca)
+Datos$Envase <- factor(Datos$Envase)
+
+# Seleccionar las variables relevantes para el clustering
+variables <- Datos[, c("Que_resalta", "Precio", "Olor", "Color", "Sabor", "Consistencia", "Presentacion", "Envase", "Marca")]
+```
+
+```{r}
+# Realizar el clustering de k-medias
+k <- 4 # Número de clusters que deseas obtener
+cluster_result <- kmeans(variables, centers = k)
+
+
+# Obtener los centroides y las asignaciones de los datos a los clusters
+centroides <- cluster_result$centers
+asignaciones <- cluster_result$cluster
+```
+
+```{r}
+# Graficar los resultados
+plot(Datos[,1], Datos[,2], col = asignaciones, pch = asignaciones, main = "Clustering de K-medias", xlab = "Aspecto más resaltante", ylab = "Precio")
+
+# Agregar los centroides al gráfico
+points(centroides[,1], centroides[,2], col = 1:k, pch = 8, cex = 2)
+
+# Mostrar el número de observaciones en cada cluster
+table(asignaciones)
+```
+
+```{r}
+#Usando el método de algoritmo K-means, el cual usa una clasificación no supervisada agrupa objetos en k grupos basándose en la mínima suma de distancias entre cada objeto y el centroide de su grupo o cluste
+set.seed(20)
+k.means.fit <-kmeans(Datos[,1:9], 4, nstart = 10)
+k.means.fit 
+```
+
+```{r}
+k.means.fit$centers
+```
+
+```{r}
+k.means.fit$ifault
+```
+
+```{r}
+# Crear un vector con las variables relevantes
+etiquetas <- c('sabor', 'color', 'consistencia', 'marca', 'olor', 'precio', "tamaño", "envase")
+
+Datos$Que_resalta <- factor(Datos$Que_resalta, levels= 1:8,
+                            labels = etiquetas)
+
+
+```
+
+
+
+
+```{r}
+grupos=k.means.fit$cluster
+table(Datos$Que_resalta,grupos) #Matriz de confusión. Si se observa la matriz de confusión, vemos como 3 grupos quedan perfectamente especificadas en los cluster 1, 3 y 4, donde 1 resalta el sabor, 3 el precio y 4 la marca, mientras que el grupo 2 prefiere tamaño y precio
+
+```
+```{r}
+#Hacer un data frame con variables estandarizadas
+d2f <- data.frame(Datos$ZPrecio, Datos$ZOlor, Datos$ZColor, Datos$ZSabor, Datos$ZConsistencia, Datos$ZEnvase, Datos$ZMarca, Datos$ZPresentacion)
+```
+
+
+
+```{r}
+#Combinacion K-means y PCA para tener una idea de cuantos cluster deberíamos usar, sin embargo el cliente ya había referido que quería mínimo 2, máximo 4
+library(factoextra)
+d2 <- scale(d2f[,1:4])
+rownames(d2) <- d2f$Datos.ZMarca
+fviz_nbclust(x = d2, FUNcluster = kmeans, method = "wss", k.max = 15, 
+             diss = get_dist(d2, method = "euclidean"), nstart = 50)
+```
+
+
+```{r}
+library(factoextra)
+
+d2f=data.frame(Datos$ZPrecio, Datos$ZOlor, Datos$ZSabor, Datos$ZConsistencia, Datos$ZEnvase, Datos$ZMarca, Datos$ZPresentacion)
+km_clusters <- kmeans(x = d2f, centers = 3, nstart = 50)
+
+# dataframe que contiene los datos como identificador de las observaciones.
+# Esto permite añadir labels a los gráficos.
+fviz_cluster(object = km_clusters, data = d2f, show.clust.cent = TRUE,
+             ellipse.type = "euclid", star.plot = TRUE, repel = TRUE,
+             pointsize=0.5,outlier.color="darkred") +
+  labs(title = "Resultados clustering K-means") +
+  theme_bw() +  theme(legend.position = "none")
+#Repressentación gráfica de los cluster através de (PCA) Análisis de Componentes Principales y k-means y % de representatividad de la variabilidad de los componentes (55%)
+```
+
+```{r}
+require(cluster)
+pam.res <- pam(d2f, 3)
+# Haciendo ajustes para teber una mejor visualización de los datos
+fviz_cluster(pam.res, geom = "point", ellipse.type = "norm",
+             show.clust.cent = TRUE,star.plot = TRUE)+
+  labs(title = "Resultados clustering K-means")+ theme_bw()
+
+```
+
+
+
+```{r}
+data(d2f)
+# PCA
+pca <- prcomp(d2f[,-5], scale=TRUE)
+df.pca <- pca$x
+# Cluster de las primeras 4 dimensiones
+kc <- kmeans(df.pca[,1:4], 4)
+fviz_pca_biplot(pca, label="var", habillage=as.factor(kc$cluster)) +
+  labs(color=NULL) + ggtitle("") +
+  theme(text = element_text(size = 15),
+        panel.background = element_blank(), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(colour = "black"),
+        legend.key = element_rect(fill = "white"))
+```
+
+```{r}
+#Usando el método PAM que trabaja con los puntos mas cercanos al centroide del cluster, llamado medioide 
+fviz_nbclust(x = d2f[,1:4], FUNcluster = pam, method = "wss", k.max = 15,
+             diss = dist(d2, method = "manhattan"))
+```
+
+
+
+```{r}
+set.seed(123)
+pam_clusters <- pam(x = d2f[,1:4], k = 3, metric = "manhattan")
+pam_clusters$medoids
+```
+
+```{r}
+#Gráfica de con algoritmo PAM
+fviz_cluster(object = pam_clusters, data = d2f[,1:4], 
+             ellipse.type = "t",repel = TRUE) +
+  theme_bw() +   labs(title = "Resultados clustering PAM") +
+  theme(legend.position = "none")
+```
+
+
+```{r}
+require(cluster)
+pam.res <- pam(d2f, 4)
+# Visualización limpia del gráfico anterior
+fviz_cluster(pam_clusters, geom = "point", ellipse.type = "norm",
+             show.clust.cent = TRUE,star.plot = TRUE)+
+  labs(title = "Resultados clustering K-means")+ theme_bw()
+#Con el método PAM obtenemos 3 cluster y la variabilidad de los componentes sube a 67%
+
+```
+
+
